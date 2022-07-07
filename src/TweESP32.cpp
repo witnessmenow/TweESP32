@@ -125,6 +125,9 @@ static int strcmp_pointer(const void *a, const void *b)
     return strcmp(*(const char **)a, *(const char **)b);
 }
 
+// This function was ported to work with the ESP32 from https://github.com/arduino-libraries/Arduino_OAuth
+// The changes I made were to make it work with the ESP32 SHA1 encryption and Base64 methods.
+
 bool TweESP32::calculateSignature(const char *method, const char *url, unsigned long oauthTime, const char *queryParams, const char *bodyParams, char *out_sig)
 {
     // This function is long due to the complexity of the OAuth signature.

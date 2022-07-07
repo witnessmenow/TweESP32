@@ -14,7 +14,9 @@ It may work with other variants (ESP32-S2 etc) but I have not tested it yet.
 
 ## Help support what I do!
 
-I put a lot of effort into getting a solution for being able to tweet directly from an ESP32, hopefully people find it useful! [If you enjoy my work, please consider becoming a Github sponsor!](https://github.com/sponsors/witnessmenow/)
+I put a lot of effort into getting a solution for being able to tweet directly from an ESP32, hopefully people find it useful!
+
+[If you enjoy my work, please consider becoming a Github sponsor!](https://github.com/sponsors/witnessmenow/)
 
 ## Library Features:
 
@@ -32,6 +34,8 @@ The code also requires a good bit of cleanup, there is a healthy mix of differen
 ## Oauth Signature
 
 The twitter API requires the use of Oauth signature for authentication, I could not find any examples of people doing this on the ESP32, so with the lack of any better resource, this library could be used as a template for doing Oauth signature for other APIs if needed.
+
+The OAuth Signature code is mainly contained in the `calculateSignature` funciton, which is heavily based on code from the [Arduino_OAuth library](https://github.com/arduino-libraries/Arduino_OAuth). This library seems to be geared towards WiFi Nina based boards (e.g MKR1010). My changes involved porting this method to make use of lower level ESP32 funcitons for SHA1 encrypting and Base64 encoding. Major thanks to the people who worked on the library, it certainly helped a lot.
 
 ## Setup Instructions
 
@@ -65,6 +69,7 @@ returns true on sucess. `twitter.lastTweetId` will also be updated with the ID o
 ```
 twitter.sendTweet("I am replying to your message!", "1544835197568425985");
 ```
+
 The second param is the twitter ID you are replying to (can be found in the URL or you can use `twitter.lastTweetId`)
 
 returns true on sucess. `twitter.lastTweetId` will also be updated with the ID of the tweet
