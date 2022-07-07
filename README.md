@@ -8,7 +8,7 @@ A Twitter API library for the ESP32 that can tweet
 
 ### ESP32
 
-This library uses some lower level methods that are included with the ESP32 for SHA1 encryptig and Base64 encoding, so it will only work with the ESP32.
+This library uses some lower level methods that are included with the ESP32 for SHA1 encrypting and Base64 encoding, so it will only work with the ESP32.
 
 It may work with other variants (ESP32-S2 etc) but I have not tested it yet.
 
