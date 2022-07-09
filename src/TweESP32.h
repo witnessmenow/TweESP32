@@ -26,7 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 // NOTE: Do not use this option on live-streams, it will reveal your
 // private tokens!
 
-#define TWEESP32_DEBUG 1
+//#define TWEESP32_DEBUG 1
 
 // Comment out if you want to disable any serial output from this library (also comment out DEBUG and PRINT_JSON_PARSE)
 #define TWEESP32_SERIAL_OUTPUT 1
