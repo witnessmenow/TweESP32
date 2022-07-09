@@ -25,10 +25,20 @@ TweESP32::TweESP32(Client &client)
     this->client = &client;
 }
 
-TweESP32::TweESP32(Client &client, const char *consumerKey, const char *consumerSecret, const char *accessToken, const char *accessTokenSecret)
+TweESP32::TweESP32(Client &client, const char *consumerKey, const char *consumerSecret, const char *accessToken, const char *accessTokenSecret, const char *bearerToken)
 {
     this->client = &client;
     lateInit(consumerKey, consumerSecret, accessToken, accessTokenSecret);
+    if (bearerToken != NULL)
+    {
+        setBearerToken(bearerToken);
+    }
+}
+
+TweESP32::TweESP32(Client &client, const char *bearerToken)
+{
+    this->client = &client;
+    setBearerToken(bearerToken);
 }
 
 int TweESP32::makeRequestWithBody(const char *type, const char *command, const char *authorization, const char *body, const char *contentType, const char *host)
@@ -94,6 +104,55 @@ int TweESP32::makePutRequest(const char *command, const char *authorization, con
 int TweESP32::makePostRequest(const char *command, const char *authorization, const char *body, const char *contentType, const char *host)
 {
     return makeRequestWithBody("POST ", command, authorization, body, contentType, host);
+}
+
+int TweESP32::makeGetRequest(const char *command, const char *authorization, const char *accept, const char *host)
+{
+    client->flush();
+    client->setTimeout(TWEESP32_TIMEOUT);
+    if (!client->connect(host, portNumber))
+    {
+#ifdef TWEESP32_SERIAL_OUTPUT
+        Serial.println(F("Connection failed"));
+#endif
+        return -1;
+    }
+
+    // give the esp a breather
+    yield();
+
+    // Send HTTP request
+    client->print(F("GET "));
+    client->print(command);
+    client->println(F(" HTTP/1.0"));
+
+    //Headers
+    client->print(F("Host: "));
+    client->println(host);
+
+    if (accept != NULL)
+    {
+        client->print(F("Accept: "));
+        client->println(accept);
+    }
+
+    if (authorization != NULL)
+    {
+        client->print(F("Authorization: "));
+        client->println(authorization);
+    }
+
+    if (client->println() == 0)
+    {
+#ifdef TWEESP32_SERIAL_OUTPUT
+        Serial.println(F("Failed to send request"));
+#endif
+        return -2;
+    }
+
+    int statusCode = getHttpStatusCode();
+
+    return statusCode;
 }
 
 void TweESP32::updateSigningKey()
@@ -450,6 +509,126 @@ bool TweESP32::sendTweet(char *message, char *replyTo)
     return success;
 }
 
+int TweESP32::searchTweets(processTweetSearch searchCallback, char *query, bool includeUsername, char *since_id)
+{
+
+    char command[500];
+    sprintf(command, searchEndpointAndParams, query);
+
+    if (includeUsername)
+    {
+        strcat(command, searchIncludeNameParams);
+    }
+
+    if (since_id != NULL)
+    {
+        char sinceBuff[50];
+        sprintf(sinceBuff, "&since_id=%s", since_id);
+        strcat(command, sinceBuff);
+    }
+
+#ifdef TWEESP32_DEBUG
+    Serial.println(command);
+    printStack();
+#endif
+
+    char auth[300];
+    sprintf(auth, "Bearer %s", _bearerToken);
+
+#ifdef TWEESP32_DEBUG
+    Serial.print("auth: ");
+    Serial.println(auth);
+#endif
+
+    int statusCode = makeGetRequest(command, auth);
+    if (statusCode > 0)
+    {
+        skipHeaders();
+    }
+    unsigned long now = millis();
+
+#ifdef TWEESP32_DEBUG
+    Serial.print("status Code");
+    Serial.println(statusCode);
+#endif
+
+    int resultNum = -1;
+    if (statusCode == 200)
+    {
+
+        DynamicJsonDocument doc(searchWithNameBufferSize);
+
+        // Parse JSON object
+#ifndef TWEESP32_PRINT_JSON_PARSE
+        DeserializationError error = deserializeJson(doc, *client);
+#else
+        ReadLoggingStream loggingStream(*client, Serial);
+        DeserializationError error = deserializeJson(doc, loggingStream);
+#endif
+        if (!error)
+        {
+            TweetSearchResult result;
+
+            int resultCount = doc["meta"]["result_count"];
+            for (int i = 0; i < resultCount; i++)
+            {
+                result.authorId = doc["data"][i]["author_id"].as<const char *>();
+                result.tweetId = doc["data"][i]["id"].as<const char *>();
+                result.text = doc["data"][i]["text"].as<const char *>();
+
+                if (includeUsername)
+                {
+                    int usersArraySize = doc["includes"]["users"].size();
+                    if (usersArraySize != resultCount)
+                    {
+                        //We have less user objects than messages, which means multiple message are from the same user
+                        // we nee to check the authorID against the user objects to match names
+
+                        for (int j = 0; j < usersArraySize; j++)
+                        {
+                            const char *user_Id = doc["includes"]["users"][j]["id"];
+                            if (strcmp(result.authorId, user_Id) == 0)
+                            {
+                                result.name = doc["includes"]["users"][j]["name"].as<const char *>();
+                                result.username = doc["includes"]["users"][j]["username"].as<const char *>();
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        result.name = doc["includes"]["users"][i]["name"].as<const char *>();
+                        result.username = doc["includes"]["users"][i]["username"].as<const char *>();
+                    }
+                }
+
+                bool continueCallback = searchCallback(result, i, resultCount);
+                // User has decided to end the callbacks
+                if (!continueCallback)
+                {
+                    break;
+                }
+            }
+
+            resultNum = resultCount;
+        }
+        else
+        {
+#ifdef TWEESP32_SERIAL_OUTPUT
+            Serial.print(F("deserializeJson() failed with code "));
+            Serial.println(error.c_str());
+#endif
+        }
+    }
+    else
+    {
+        parseError();
+    }
+
+    closeClient();
+    return resultNum;
+}
+
 int TweESP32::getContentLength()
 {
 
@@ -542,6 +721,11 @@ void TweESP32::parseError()
         Serial.print(F("Could not parse error"));
     }
 #endif
+}
+
+void TweESP32::setBearerToken(const char *bearerToken)
+{
+    this->_bearerToken = bearerToken;
 }
 
 void TweESP32::lateInit(const char *consumerKey, const char *consumerSecret, const char *accessToken, const char *accessTokenSecret)

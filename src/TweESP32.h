@@ -26,7 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 // NOTE: Do not use this option on live-streams, it will reveal your
 // private tokens!
 
-//#define TWEESP32_DEBUG 1
+#define TWEESP32_DEBUG 1
 
 // Comment out if you want to disable any serial output from this library (also comment out DEBUG and PRINT_JSON_PARSE)
 #define TWEESP32_SERIAL_OUTPUT 1
@@ -64,11 +64,23 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 #define TWEESP32_TWEETS_ENDPOINT "/2/tweets"
 
+struct TweetSearchResult
+{
+  const char *authorId;
+  const char *tweetId;
+  const char *text;
+  const char *name;
+  const char *username;
+};
+
+typedef bool (*processTweetSearch)(TweetSearchResult result, int index, int numResults);
+
 class TweESP32
 {
 public:
   TweESP32(Client &client);
-  TweESP32(Client &client, const char *consumerKey, const char *consumerSecret, const char *accessToken, const char *accessTokenSecret);
+  TweESP32(Client &client, const char *consumerKey, const char *consumerSecret, const char *accessToken, const char *accessTokenSecret, const char *bearerToken = NULL);
+  TweESP32(Client &client, const char *bearerToken);
 
   // Auth Methods
   void updateSigningKey();
@@ -86,6 +98,7 @@ public:
 
   // User methods
   bool sendTweet(char *message, char *replyTo = NULL);
+  int searchTweets(processTweetSearch searchCallback, char *query, bool includeUsername = true, char *since_id = NULL);
 
   int portNumber = 443;
 
@@ -93,8 +106,11 @@ public:
 
   const char *ntpServer = "pool.ntp.org";
 
+  int searchWithNameBufferSize = 4500;
+
   Client *client;
   void lateInit(const char *consumerKey, const char *consumerSecret, const char *accessToken, const char *accessTokenSecret);
+  void setBearerToken(const char *bearerToken);
 
 #ifdef TWEESP32_DEBUG
   char *stack_start;
@@ -107,6 +123,12 @@ private:
   const char *_consumerSecret;
   const char *_accessToken;
   const char *_accessTokenSecret;
+  const char *_bearerToken;
+
+  const char *searchEndpointAndParams =
+      R"(/2/tweets/search/recent?max_results=10&query=%s)";
+  const char *searchIncludeNameParams =
+      R"(&expansions=author_id&user.fields=username)";
 
   int getContentLength();
   int getHttpStatusCode();

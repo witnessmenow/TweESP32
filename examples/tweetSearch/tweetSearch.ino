@@ -1,7 +1,5 @@
 /*******************************************************************
-    A sample project for sending a tweet directly from an ESP32
-
-    NOTE: This will automatically tweet from your account!
+    Search for tweets
 
     Parts:
     ESP32 Dev Board
@@ -55,32 +53,20 @@ char password[] = "Password"; // your network key
 
 // Create a project and an app here to get keys https://developer.twitter.com/en/portal/dashboard
 
-const char *consumerKey = "MEOW";
-
-const char *consumerSecret = "WOOF";
-
-const char *accessToken = "MOOOO";
-
-const char *accessTokenSecret = "BAAAAA";
+const char *bearerToken = "QUACK";
 
 // ----------------------------
-
-const char *ntpServer = "pool.ntp.org";
 
 // For HTTPS requests
 WiFiClientSecure client;
 
-TweESP32 twitter(client, consumerKey, consumerSecret, accessToken, accessTokenSecret);
+TweESP32 twitter(client, bearerToken);
 
-// IF you have a bearer token (for searching for tweets), you can add it at the end
-// TweESP32 twitter(client, consumerKey, consumerSecret, accessToken, accessTokenSecret, bearerToken);
+unsigned long requestDueTime;               //time when request due
+unsigned long delayBetweenRequests = 45000; // Time between requests (45 seconds) // Rate limit seems to be 450 reqs per 15 minutes (30 seconds)
 
-// If you want to load these keys from spiffs etc, you can create the object with just a client
-// TweESP32 twitter(client);
-
-// and after the data is loaded, add it to the library later
-// twitter.lateInit(consumerKey, consumerSecret, accessToken, accessTokenSecret);
-// twitter.setBearerToken(bearerToken);
+char lastTweetId[50];
+bool haveLastTweetId = false;
 
 void setup()
 {
@@ -104,26 +90,68 @@ void setup()
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 
-    //Required for Oauth for sending tweets
-    twitter.timeConfig();
-
     // Checking the cert is the best way on an ESP32
     // This will verify the server is trusted.
     client.setCACert(twitter_server_cert);
+}
 
-    // ----------------------------
-    // NOTE: This will automatically tweet from your account!
-    // ----------------------------
+void printTweet(TweetSearchResult tweet)
+{
+    Serial.print(tweet.username); //witnessmenow
+    Serial.print(": ");
+    Serial.println(tweet.text);
 
-    bool success = twitter.sendTweet("Hello World! (Sent from my ESP32 using #TweESP32)");
-    if (success)
+    // Also available
+    //tweet.authorId
+    //tweet.tweetId
+    //tweet.name // Brian Lough
+}
+
+bool processTweets(TweetSearchResult tweet, int index, int numMessages)
+{
+    printTweet(tweet);
+    if (index == 0)
     {
-        delay(5000);
-        twitter.sendTweet("I can even reply to tweets to create a thread", twitter.lastTweetId);
+        // This will save the most recent tweetID so only newer tweets than this will be returned
+        strcpy(lastTweetId, tweet.tweetId);
+        haveLastTweetId = true;
     }
+    return true; // You can stop the callback by returning false
 }
 
 void loop()
 {
-    // put your main code here, to run repeatedly:
+    if (millis() > requestDueTime)
+    {
+        int numberOfResponses = 0;
+
+        //Info for creating search queries: https://developer.twitter.com/en/docs/twitter-api/tweets/search/integrate/build-a-query
+
+        // query must be url encoded. urlEncode is provided by the URLEncode.h library
+        String query = urlEncode("#dogs");
+        if (haveLastTweetId)
+        {
+            numberOfResponses = twitter.searchTweets(processTweets, (char *)query.c_str(), true, lastTweetId);
+        }
+        else
+        {
+            numberOfResponses = twitter.searchTweets(processTweets, (char *)query.c_str(), true);
+            //you could skip the encoding if you it manually
+            //numberOfResponses = twitter.searchTweets(processTweets, "%23dogs", true);
+        }
+
+        // 0 tweets back is valid, your search might not have matched anything in the last 7 days.
+        if (numberOfResponses >= 0)
+        {
+            Serial.print("Recieved ");
+            Serial.print(numberOfResponses);
+            Serial.println(" tweets");
+        }
+        else
+        {
+            Serial.println("error getting tweets");
+        }
+
+        requestDueTime = millis() + delayBetweenRequests;
+    }
 }
