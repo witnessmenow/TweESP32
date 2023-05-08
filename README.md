@@ -1,6 +1,6 @@
 # TweESP32
 
-A Twitter API library for the ESP32 that can tweet
+A Twitter API library for the ESP32 that can tweet. The twitter API supports sending tweets for free, but is $100 a month for searching tweets!?
 
 **Work in progress library - expect changes!**
 
@@ -22,9 +22,9 @@ I put a lot of effort into getting a solution for being able to tweet directly f
 
 The Library supports the following features:
 
-- Send Tweets:
+- Send Tweets (can be done for free):
   - Basic tweets and replies to specific tweets
-- Search Tweets
+- Search Tweets (requires $100/ month api!?)
 
 ### What needs to be added:
 
