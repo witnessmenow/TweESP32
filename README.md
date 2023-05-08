@@ -24,7 +24,7 @@ The Library supports the following features:
 
 - Send Tweets (can be done for free):
   - Basic tweets and replies to specific tweets
-- Search Tweets (requires $100/ month api!?)
+- Search Tweets (requires $100/ month api!? I can't support/test this portion anymore)
 
 ### What needs to be added:
 
